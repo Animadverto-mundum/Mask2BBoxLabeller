@@ -27,7 +27,7 @@ Notice:
 ### From github
 
 ```bash
-git clone
+git clone https://github.com/git-thinker/Mask2BBoxLabeller.git
 cd Mask2BBoxLabeller
 pip3 install -r requirements.txt
 python3 main.py
