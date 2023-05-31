@@ -5,6 +5,47 @@ import numpy as np
 import csv
 import collections
 from tkinter import messagebox
+import sys
+
+
+def scan_from_2dir(img_path: str, mask_path: str) -> List[Tuple[str]]:
+    """Scan all jpg image from img and mask dir and return img-mask tuple
+
+    Parameters
+    ----------
+    img_path : str
+        image dir
+    mask_path : str
+        mask dir
+
+    Returns
+    -------
+    List[Tuple[str]]
+        [('1.jpg', '1-mask.jpg'])]
+    """
+    try:
+        img_list = [i for i in os.listdir(img_path) if any([i.endswith(j) for j in ('.jpg', 'png', '.bmp', 'jpeg')]) and not i.split('.')[0].endswith('-mask')]
+    except:
+        messagebox.showerror("", "不存在路径 %s。" %  img_path)
+        sys.exit()
+
+    try:
+        mask_list = [i for i in os.listdir(mask_path) if any([i.endswith(j) for j in ('.jpg', 'png', '.bmp', 'jpeg')]) and i.split('.')[0].endswith('-mask')]
+    except:
+        messagebox.showerror("", "不存在路径 %s。" %  mask_path)
+        sys.exit()
+    
+    img_root2file = {i.split('.')[0]: i for i in img_list}
+    mask_root2file = {i.split('.')[0].rstrip('-mask'): i for i in mask_list}
+
+    img_root = set([i.split('.')[0] for i in img_list])
+    mask_root = set([i.split('.')[0].rstrip('-mask') for i in mask_list])
+    union_root = img_root & mask_root
+    if not len(union_root) == len(mask_root) == len(img_root):
+        messagebox.showerror("", "存在缺失/命名不匹配的图片/遮罩，已忽略。")
+    union_root = list(union_root)
+    union_root.sort()
+    return [(os.path.join(img_path, img_root2file[root]), os.path.join(mask_path, mask_root2file[root])) for root in union_root]
 
 
 def scan_dir(path: str) -> List[Tuple[str]]:
@@ -24,7 +65,7 @@ def scan_dir(path: str) -> List[Tuple[str]]:
     try:
         jpg_list = [os.path.join(path, i) for i in os.listdir(path) if any([i.endswith(j) for j in ('.jpg', 'png', '.bmp', 'jpeg')])]
     except:
-        messagebox.showerror("", "No such path %s" % path)
+        messagebox.showerror("", "不存在路径 %s" % path)
     return [(jpg_list[i+1], jpg_list[i]) for i in range(0, len(jpg_list), 2)]
 
 def mask2bbox(path: str) -> List[Tuple[int]]:
@@ -81,7 +122,7 @@ class AnnotationCenter:
                             self.annotations[image_name][0].append(bbox)
                             self.annotations[image_name][1].append(labels)
             except:
-                messagebox.showerror("CSV Error", "CSV Exist but cannot be loaded, Overwriting...")
+                messagebox.showerror("CSV Error", "CSV 存在但读取失败或包含不合适的类，将覆写")
 
     def add(self, image_name_tuple: Tuple[str], bbox: List[Tuple[int]], labels_list: List[Tuple[bool]]):
         """Add bbox labels for an image

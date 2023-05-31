@@ -2,9 +2,10 @@ import tkinter as tk
 from tkinter import Tk, Canvas, Frame, Checkbutton, Button
 from PIL import ImageTk, Image
 from tkinter.filedialog import askdirectory
-from tkinter import messagebox
+from tkinter import ttk
 import utils
 import os
+import sys
 
 labels = None
 image_root = None
@@ -26,7 +27,7 @@ def refresh(event=None):
     global load_crop_image
 
     # pregress details on the title
-    root.title("Mask2BBox by @git-thinker | Image: %d/%d | Item: %d / %d" % (image_ptr+1, len(image_list), bbox_ptr+1, len(bbox_list)))
+    root.title("Mask2BBox | Image: %d/%d | Item: %d / %d" % (image_ptr+1, len(image_list), bbox_ptr+1, len(bbox_list)))
 
     # resize the main canvas
     if event:
@@ -109,9 +110,10 @@ def load_checker():
     # load checkbox status from memory to GUI
     for i in range(len(checkboxes)):
         if label_list[bbox_ptr][i]:
-            checkboxes[i].select()
+            checks[i].set(True)
         else:
-            checkboxes[i].deselect()
+            checks[i].set(False)
+    check2joint()
 
 def save_checker():
     # save checkbox status from GUI to memory
@@ -127,32 +129,106 @@ def prepare_image():
     load_checker()
 
 
+query_win = Tk()
+query_win.title('选择工作目录')
+initial_width = 400
+initial_height = 400
+query_win.geometry(f"{initial_width}x{initial_height}")
 
-messagebox.showinfo("","Choose Your Image Folder in (ACSII).\nClass names shall be stored in class.csv\nOutput will be in anno.csv")
-imaeg_dir = askdirectory()
+tk.Label(query_win, text='图像目录(命名如:1.jpg)').pack()
+img_dir_text = tk.StringVar()
+img_dir_textbox = tk.Entry(query_win, textvariable=img_dir_text)
+img_dir_textbox.pack()
+img_dir_button = tk.Button(query_win, text='选择目录', command=lambda: img_dir_text.set(askdirectory()))
+img_dir_button.pack()
 
-try:
-    with open(os.path.join(imaeg_dir, 'class.csv'), 'r', encoding='utf-8') as f:
-        labels = [i.strip() for i in f.readline().strip().split(',')]
-        labels.sort()
-except:
-    messagebox.showerror("Missing class setting", "class.csv not found")
+tk.Label(query_win, text='遮罩目录(命名如:1-mask.jpg)').pack()
+mask_dir_text = tk.StringVar()
+mask_dir_textbox = tk.Entry(query_win, textvariable=mask_dir_text)
+mask_dir_textbox.pack()
+mask_dir_button = tk.Button(query_win, text='选择目录', command=lambda: mask_dir_text.set(askdirectory()))
+mask_dir_button.pack()
 
-annotation_center = utils.AnnotationCenter(os.path.join(imaeg_dir, 'anno.csv'), labels)
-image_list = utils.scan_dir(imaeg_dir)
+tk.Label(query_win, text='输出目录(将尝试载入/写入anno.csv) | 切换图片自动写入').pack()
+output_dir_text = tk.StringVar()
+output_dir_textbox = tk.Entry(query_win, textvariable=output_dir_text)
+output_dir_textbox.pack()
+output_dir_button = tk.Button(query_win, text='选择目录', command=lambda: output_dir_text.set(askdirectory()))
+output_dir_button.pack()
+
+def quit_query():
+    global image_dir, mask_dir, output_dir
+    image_dir = img_dir_text.get()
+    mask_dir = mask_dir_text.get()
+    output_dir = output_dir_text.get()
+    query_win.destroy()
+
+
+output_dir_button = tk.Button(query_win, text='确认', command=quit_query)
+output_dir_button.pack(pady=10)
+query_win.protocol('WM_DELETE_WINDOW', lambda: (query_win.destroy(),sys.exit()))
+query_win.mainloop()
+
 
 # root windows
 root = Tk()
 root.title("Mask2BBox by @git-thinker")
 
 # initial windows size
-initial_width = 800
-initial_height = 600
+initial_width = 1920
+initial_height = 1020
 root.geometry(f"{initial_width}x{initial_height}")
 
+label_text = iter(['病变类型:', '外观:', '分布:', '位置:', '荧光强度:'])
+label = [
+    [
+        'G（小球）',
+        'T（小管）',
+        'PTC（管周毛细血管）',
+        'A（动脉）',
+        '错误分割',
+    ],
+    [
+        '颗粒状',
+        '线性',
+        '团块状',
+        '类线性',
+    ],
+    [
+        '弥漫',
+        '局灶',
+        '球性',
+        '节段',
+        '阳性',
+        '阴性',
+    ],
+    [
+        '毛细血管袢',
+        '系膜区',
+        '基底膜',
+        '上皮细胞胞浆',
+        '管型（含蛋白管型）',
+    ],
+    [
+        '1+',
+        '2+',
+        '3+',
+        'trace',
+        '0',
+    ],
+]
+
+
+labels = [item for sublist in label for item in (sublist if isinstance(sublist, list) else [sublist])]
+
+annotation_center = utils.AnnotationCenter(os.path.join(output_dir, 'anno.csv'), labels)
+image_list = utils.scan_from_2dir(image_dir, mask_dir)
+
+
+
 # set size for components
-small_canvas_width = 200
-small_canvas_height = 200
+small_canvas_width = 150
+small_canvas_height = 150
 checkboxes_height = 200
 bottom_height = 50
 
@@ -161,47 +237,117 @@ canvas = Canvas(root, bg="white")
 canvas.pack(side="left", fill="both", expand=True)
 canvas.bind("<Configure>", refresh)
 
+middle = tk.Frame(root)
+middle.pack(side='left')
 
 # small canvas for bbox preview
-small_canvas = Canvas(root, bg="lightgray", width=small_canvas_width, height=small_canvas_height)
-small_canvas.pack(side="top", anchor="ne")
+small_canvas = Canvas(middle, bg="lightgray", width=small_canvas_width, height=small_canvas_height)
+small_canvas.pack(side='top', anchor='nw')
 small_canvas.bind("<Configure>", refresh)
 
-# label checkboxes
-checkbox_frame = Frame(root)
-checkbox_frame.pack(side="right", fill="y", padx=10, pady=10)
 
-checkboxes = []
-checks = []
-
-for i in labels:
-    check = tk.BooleanVar()
-    checkbox = Checkbutton(checkbox_frame, text=i, variable=check)
-    checkbox.pack(anchor="w")
-    checks.append(check)
-    checkboxes.append(checkbox)
-
-
-# button for prev / next
-button_frame = Frame(root)
-button_frame.pack(side="right", anchor="se", padx=10, pady=10)
+def clearAllcheck():
+    for check in checks:
+        check.set(False)
+    for joint in joints:
+        joint.set(-1)
 
 buttons_width = 16
 
-button1 = Button(button_frame, text="<- BBox", width=int(buttons_width/2), command=prev_bbox)
-button1.grid(row=0, column=0)
+# button for prev / next
+button_frame = Frame(middle)
+button_frame.pack(side='bottom', anchor='nw', padx=10, pady=10)
 
-button2 = Button(button_frame, text="BBox ->", width=int(buttons_width/2), command=next_bbox)
-button2.grid(row=0, column=1, padx=10)
+button0 = Button(button_frame, text="Clear(Q)", width=int(buttons_width/2), command=clearAllcheck)
+button0.grid(row=0, column=0)
 
-button3 = Button(button_frame, text="<- Img", width=int(buttons_width/2), command=prev_image)
-button3.grid(row=1, column=0, pady=10)
+button1 = Button(button_frame, text="<- BBox(A)", width=int(buttons_width/2), command=prev_bbox)
+button1.grid(row=1, column=0, pady=10)
 
-button4 = Button(button_frame, text="Img ->", width=int(buttons_width/2), command=next_image)
-button4.grid(row=1, column=1, padx=10, pady=10)
+
+button2 = Button(button_frame, text="BBox ->(D)", width=int(buttons_width/2), command=next_bbox)
+button2.grid(row=1, column=1, padx=10)
+
+
+button3 = Button(button_frame, text="<- Img(W)", width=int(buttons_width/2), command=prev_image)
+button3.grid(row=2, column=0, pady=10)
+
+
+button4 = Button(button_frame, text="Img(S) ->", width=int(buttons_width/2), command=next_image)
+button4.grid(row=2, column=1, padx=10, pady=10)
+
+def shortcut(event):
+    char = event.char.lower()
+    if char == 'w':
+        prev_image()
+    elif char == 's':
+        next_image() 
+    elif char == 'a':
+        prev_bbox()
+    elif char == 'd':
+        next_bbox()
+    elif char == 'q':
+        clearAllcheck()       
+
+root.bind('<Key>', shortcut)
+
+
+# label checkboxes
+checkbox_frame = Frame(root)
+checkbox_frame.pack(anchor="n", fill="y", padx=10, pady=10)
+
+checkboxes = []
+checks = []
+joints = []
+
+def renew_checkbox():
+    joint2check()
+
+def joint2check():
+    for check in checks:
+        check.set(False)
+    s = [i.get() for i in joints ]
+    for joint in joints:
+        if joint.get() != -1:
+            checks[joint.get()].set(True)
+    
+def check2joint():
+    label_map = []
+    for i, l in enumerate(label):
+        label_map.extend([i] * len(l))
+    for joint in joints:
+        joint.set(-1)
+    
+    for i, check in enumerate(checks):
+        if check.get():
+            joints[label_map[i]].set(i)
+
+# unique id for each checkbox
+i = 0
+for l in label:
+    joint = tk.IntVar(value=-1)
+    tk.Label(checkbox_frame, text=next(label_text), pady=-2).pack(anchor="w")
+    for j in l:
+        check = tk.BooleanVar()
+        checkbox = tk.Radiobutton(checkbox_frame, text=j, variable=joint, value=i, command=renew_checkbox, pady=-2)
+        checkbox.pack(anchor="w")
+        checks.append(check)
+        checkboxes.append(checkbox)
+        i += 1
+    sep = ttk.Separator(checkbox_frame, orient='horizontal')
+    sep.pack(fill='x')
+    joints.append(joint)
+
 
 # pre_loading image
 prepare_image()
+
+def root_distroy():
+    next_image()
+    root.destroy()
+
+# save current bbox before exit
+root.protocol('WM_DELETE_WINDOW', root_distroy)
 
 # main loop
 root.mainloop()
