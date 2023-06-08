@@ -1,4 +1,5 @@
 import os
+os.environ['OPENCV_IO_MAX_IMAGE_PIXELS']='200000000000'
 from typing import *
 import cv2
 import numpy as np 
@@ -6,9 +7,16 @@ import csv
 import collections
 from tkinter import messagebox
 import sys
+import tkinter as tk
 
 
-def scan_from_2dir(img_path: str, mask_path: str) -> List[Tuple[str]]:
+from PIL import ImageFile
+from PIL import Image
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+Image.MAX_IMAGE_PIXELS = None
+
+
+def scan_from_2dir(img_path: str, mask_path: str, ifresize, win) -> List[Tuple[str]]:
     """Scan all jpg image from img and mask dir and return img-mask tuple
 
     Parameters
@@ -45,8 +53,35 @@ def scan_from_2dir(img_path: str, mask_path: str) -> List[Tuple[str]]:
         messagebox.showerror("", "存在缺失/命名不匹配的图片/遮罩，已忽略。")
     union_root = list(union_root)
     union_root.sort()
-    return [(os.path.join(img_path, img_root2file[root]), os.path.join(mask_path, mask_root2file[root])) for root in union_root]
+    if ifresize:
+        progressbarOne = tk.ttk.Progressbar(win)
+        progressbarOne.pack()
+        progressbarOne['value'] = 0
+        # 设置进度条的最大值
+        progressbarOne['maximum'] = len(union_root)
 
+        if not os.path.exists(os.path.join(img_path, 'tmp')):
+            os.mkdir(os.path.join(img_path, 'tmp'))
+        if not os.path.exists(os.path.join(mask_path, 'tmp')):
+            os.mkdir(os.path.join(mask_path, 'tmp'))
+        for l, root in enumerate(union_root):
+            progressbarOne['value'] = l
+            win.update()
+            i = os.path.join(img_path, img_root2file[root])
+            j = os.path.join(mask_path, mask_root2file[root])
+            img = Image.open(i)
+            refactor = max(img.size) // 2048
+            img.resize((img.size[0] // refactor, img.size[1] // refactor)).save(os.path.join(img_path, 'tmp' ,img_root2file[root]))
+            img.close()
+            del img
+            mask  = Image.open(j)
+            mask.resize((mask.size[0] // refactor, mask.size[1] // refactor)).save(os.path.join(mask_path, 'tmp' ,mask_root2file[root]))
+            mask.close()
+            del mask
+        return [(os.path.join(img_path, 'tmp', img_root2file[root]), os.path.join(mask_path, 'tmp', mask_root2file[root])) for root in union_root]
+    else:
+        return [(os.path.join(img_path, img_root2file[root]), os.path.join(mask_path, mask_root2file[root])) for root in union_root]
+        
 
 def scan_dir(path: str) -> List[Tuple[str]]:
     """Scan all jpg image in a dir and return img-mask tuple

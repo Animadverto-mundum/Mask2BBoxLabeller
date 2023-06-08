@@ -7,6 +7,10 @@ import utils
 import os
 import sys
 
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+Image.MAX_IMAGE_PIXELS = None
+
 labels = None
 image_root = None
 image_list = None
@@ -27,10 +31,10 @@ def refresh(event=None):
     global load_crop_image
 
     # pregress details on the title
-    root.title("Mask2BBox | Image: %d/%d | Item: %d / %d" % (image_ptr+1, len(image_list), bbox_ptr+1, len(bbox_list)))
+    root.title("Mask2BBox | Image: %d/%d | Item: %d / %d | %s" % (image_ptr+1, len(image_list), bbox_ptr+1, len(bbox_list), image_list[image_ptr][0]))
 
     # resize the main canvas
-    if event:
+    if event is not None and event != 0:
         canvas_width = event.width
         canvas_height = event.height
     else:
@@ -45,8 +49,9 @@ def refresh(event=None):
     canvas.delete("all")
     width_factor = canvas.winfo_width() / original_img.size[0]
     height_factor = canvas.winfo_height() / original_img.size[1]
-    image = original_img.resize((canvas.winfo_width(), canvas.winfo_height()))
-    image = ImageTk.PhotoImage(image)
+    if event is not None:
+        image = original_img.resize((canvas.winfo_width(), canvas.winfo_height()))
+        image = ImageTk.PhotoImage(image)
     canvas.create_image(0, 0, anchor='nw', image=image)
 
     # repaint bbox rectangles
@@ -93,7 +98,7 @@ def prev_image():
     image_ptr -= 1
     if image_ptr < 0: image_ptr = 0
     prepare_image()
-    refresh()
+    refresh(0)
 
 def next_image():
     global image_ptr
@@ -104,7 +109,7 @@ def next_image():
     image_ptr += 1
     if image_ptr == len(image_list): image_ptr = len(image_list) - 1
     prepare_image()
-    refresh()
+    refresh(0)
 
 def load_checker():
     # load checkbox status from memory to GUI
@@ -132,8 +137,8 @@ def prepare_image():
 query_win = Tk()
 query_win.title('选择工作目录')
 initial_width = 400
-initial_height = 400
-query_win.geometry(f"{initial_width}x{initial_height}")
+initial_height = 350
+query_win.geometry(f"{initial_width}x{initial_height}+{(query_win.winfo_screenwidth()-initial_width)//2}+{(query_win.winfo_screenheight()-initial_height)//2}")
 
 tk.Label(query_win, text='图像目录(命名如:1.jpg)').pack()
 img_dir_text = tk.StringVar()
@@ -157,13 +162,16 @@ output_dir_button = tk.Button(query_win, text='选择目录', command=lambda: ou
 output_dir_button.pack()
 
 def quit_query():
-    global image_dir, mask_dir, output_dir
+    global image_dir, mask_dir, output_dir, image_list
     image_dir = img_dir_text.get()
     mask_dir = mask_dir_text.get()
     output_dir = output_dir_text.get()
+    image_list = utils.scan_from_2dir(image_dir, mask_dir, resize_check_var.get(), query_win)
     query_win.destroy()
 
-
+resize_check_var = tk.BooleanVar()
+resize_check = tk.Checkbutton(query_win, text='缩放图片', variable=resize_check_var)
+resize_check.pack(pady=10)
 output_dir_button = tk.Button(query_win, text='确认', command=quit_query)
 output_dir_button.pack(pady=10)
 query_win.protocol('WM_DELETE_WINDOW', lambda: (query_win.destroy(),sys.exit()))
@@ -222,13 +230,12 @@ label = [
 labels = [item for sublist in label for item in (sublist if isinstance(sublist, list) else [sublist])]
 
 annotation_center = utils.AnnotationCenter(os.path.join(output_dir, 'anno.csv'), labels)
-image_list = utils.scan_from_2dir(image_dir, mask_dir)
 
 
 
 # set size for components
-small_canvas_width = 150
-small_canvas_height = 150
+small_canvas_width = 600
+small_canvas_height = 600
 checkboxes_height = 200
 bottom_height = 50
 
