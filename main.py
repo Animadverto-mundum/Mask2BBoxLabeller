@@ -21,6 +21,8 @@ label_list = None
 original_img = None
 crop_image = None
 load_crop_image = None
+area_image = None
+load_area_image = None
 
 
 def refresh(event=None):
@@ -29,6 +31,8 @@ def refresh(event=None):
     global image
     global crop_image
     global load_crop_image
+    global area_image
+    global load_area_image
 
     # pregress details on the title
     root.title("Mask2BBox | Image: %d/%d | Item: %d / %d | %s" % (image_ptr+1, len(image_list), bbox_ptr+1, len(bbox_list), image_list[image_ptr][0]))
@@ -41,7 +45,7 @@ def refresh(event=None):
         canvas_width = canvas.winfo_width()
         canvas_height = canvas.winfo_height()
     canvas.config(
-        width=canvas_width - small_canvas_width,
+        width=canvas_width - small_canvas_width*2,
         height=canvas_height - checkboxes_height - bottom_height
     )
     
@@ -56,15 +60,15 @@ def refresh(event=None):
 
     # repaint bbox rectangles
     for i, (x1, y1, x2, y2) in enumerate(bbox_list):
-        if i < bbox_ptr:
-            # visited
-            outline='gray'
-        elif i == bbox_ptr:
+        if i == bbox_ptr:
             # working on
-            outline='red'
+            outline='white'
+        elif any(label_list[i]):
+            # visited
+            outline='green'
         else:
             # todo
-            outline='black'
+            outline='red'
         canvas.create_rectangle(x1 * width_factor, y1 * height_factor, x2 * width_factor, y2 * height_factor, outline=outline, width=1)
     
     # remove preview on small canvas to load new preview
@@ -72,6 +76,17 @@ def refresh(event=None):
     crop_image = original_img.crop(bbox_list[bbox_ptr]).resize((small_canvas.winfo_width(), small_canvas.winfo_height()))
     load_crop_image = ImageTk.PhotoImage(crop_image)
     small_canvas.create_image(0, 0, anchor='nw', image = load_crop_image)
+
+    area_canvas.delete("all")
+    area_l, area_u, area_r, area_d = bbox_list[bbox_ptr]
+    area_factor = 2
+    area_l, area_r = (area_l + area_r) // 2 - (area_r - area_l) * area_factor // 2, (area_l + area_r) // 2 + (area_r - area_l) * area_factor // 2
+    area_u, area_d = (area_d + area_u) // 2 - (area_d - area_u) * area_factor // 2, (area_d + area_u) // 2 + (area_d - area_u) * area_factor // 2
+    area_l, area_r, area_u, area_d = max(0, int(area_l)), min(original_img.size[0], int(area_r)), max(0, int(area_u)), min(original_img.size[1], int(area_d))
+    area_image = original_img.crop((area_l, area_u, area_r, area_d)).resize((area_canvas.winfo_width(), small_canvas.winfo_height()))
+    load_area_image = ImageTk.PhotoImage(area_image)
+    area_canvas.create_image(0, 0, anchor='nw', image = load_area_image)
+
 
 def prev_bbox():
     global bbox_ptr
@@ -213,7 +228,9 @@ label = [
     [
         '毛细血管袢',
         '系膜区',
-        '基底膜',
+        '血管壁',
+        '包曼囊壁',
+        '肾小管基底膜',
         '上皮细胞胞浆',
         '管型（含蛋白管型）',
     ],
@@ -234,8 +251,8 @@ annotation_center = utils.AnnotationCenter(os.path.join(output_dir, 'anno.csv'),
 
 
 # set size for components
-small_canvas_width = 600
-small_canvas_height = 600
+small_canvas_width = 450
+small_canvas_height = 450
 checkboxes_height = 200
 bottom_height = 50
 
@@ -247,10 +264,19 @@ canvas.bind("<Configure>", refresh)
 middle = tk.Frame(root)
 middle.pack(side='left')
 
+tk.Label(middle, text='对象').grid(row=0, column=0)
+tk.Label(middle, text='对象邻域').grid(row=0, column=1)
+
+
+
 # small canvas for bbox preview
 small_canvas = Canvas(middle, bg="lightgray", width=small_canvas_width, height=small_canvas_height)
-small_canvas.pack(side='top', anchor='nw')
+small_canvas.grid(row=1, column=0)
 small_canvas.bind("<Configure>", refresh)
+
+area_canvas = Canvas(middle, bg="lightgray", width=small_canvas_width, height=small_canvas_height)
+area_canvas.grid(row=1, column=1)
+area_canvas.bind("<Configure>", refresh)
 
 
 def clearAllcheck():
@@ -263,7 +289,7 @@ buttons_width = 16
 
 # button for prev / next
 button_frame = Frame(middle)
-button_frame.pack(side='bottom', anchor='nw', padx=10, pady=10)
+button_frame.grid(row=2, column=0, columnspan=2)
 
 button0 = Button(button_frame, text="Clear(Q)", width=int(buttons_width/2), command=clearAllcheck)
 button0.grid(row=0, column=0)
@@ -333,7 +359,7 @@ def check2joint():
 i = 0
 for l in label:
     joint = tk.IntVar(value=-1)
-    tk.Label(checkbox_frame, text=next(label_text), pady=-2).pack(anchor="w")
+    tk.Label(checkbox_frame, text=next(label_text), pady=-3, font=("Times",10,"bold")).pack(anchor="w")
     for j in l:
         check = tk.BooleanVar()
         checkbox = tk.Radiobutton(checkbox_frame, text=j, variable=joint, value=i, command=renew_checkbox, pady=-2)
