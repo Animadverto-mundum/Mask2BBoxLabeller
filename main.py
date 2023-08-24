@@ -44,17 +44,24 @@ def refresh(event=None):
     else:
         canvas_width = canvas.winfo_width()
         canvas_height = canvas.winfo_height()
+    
     canvas.config(
-        width=canvas_width - small_canvas_width*2,
+        width=canvas_width - area_canvas_width,
         height=canvas_height - checkboxes_height - bottom_height
     )
     
     # remove image and rectangles on the main canvas to repaint due to resizing
     canvas.delete("all")
-    width_factor = canvas.winfo_width() / original_img.size[0]
-    height_factor = canvas.winfo_height() / original_img.size[1]
+    # resize image without distortion
+    if original_img.size[0] > original_img.size[1]:
+        width_factor = canvas.winfo_width() / original_img.size[0]
+        height_factor = width_factor
+    else:
+        height_factor = canvas.winfo_height() / original_img.size[1]
+        width_factor = height_factor
+
     if event is not None:
-        image = original_img.resize((canvas.winfo_width(), canvas.winfo_height()))
+        image = original_img.resize((int(width_factor*original_img.size[0]), int(height_factor*original_img.size[1])))
         image = ImageTk.PhotoImage(image)
     canvas.create_image(0, 0, anchor='nw', image=image)
 
@@ -71,13 +78,8 @@ def refresh(event=None):
             outline='red'
         canvas.create_rectangle(x1 * width_factor, y1 * height_factor, x2 * width_factor, y2 * height_factor, outline=outline, width=1)
     
-    # remove preview on small canvas to load new preview
-    small_canvas.delete("all")
-    if 0 <= bbox_ptr < len(bbox_list):
-        crop_image = original_img.crop(bbox_list[bbox_ptr]).resize((small_canvas.winfo_width(), small_canvas.winfo_height()))
-        load_crop_image = ImageTk.PhotoImage(crop_image)
-        small_canvas.create_image(0, 0, anchor='nw', image = load_crop_image)
-
+    # remove preview on area canvas to load new preview
+    
     area_canvas.delete("all")
     if 0 <= bbox_ptr < len(bbox_list):
         area_l, area_u, area_r, area_d = bbox_list[bbox_ptr]
@@ -85,7 +87,7 @@ def refresh(event=None):
         area_l, area_r = (area_l + area_r) // 2 - (area_r - area_l) * area_factor // 2, (area_l + area_r) // 2 + (area_r - area_l) * area_factor // 2
         area_u, area_d = (area_d + area_u) // 2 - (area_d - area_u) * area_factor // 2, (area_d + area_u) // 2 + (area_d - area_u) * area_factor // 2
         area_l, area_r, area_u, area_d = max(0, int(area_l)), min(original_img.size[0], int(area_r)), max(0, int(area_u)), min(original_img.size[1], int(area_d))
-        area_image = original_img.crop((area_l, area_u, area_r, area_d)).resize((area_canvas.winfo_width(), small_canvas.winfo_height()))
+        area_image = original_img.crop((area_l, area_u, area_r, area_d)).resize((area_canvas.winfo_width(), area_canvas.winfo_height()))
         load_area_image = ImageTk.PhotoImage(area_image)
         area_canvas.create_image(0, 0, anchor='nw', image = load_area_image)
 
@@ -226,7 +228,6 @@ label = [
         '局灶',
         '球性',
         '节段',
-        '阳性',
         '阴性',
     ],
     [
@@ -255,8 +256,8 @@ annotation_center = utils.AnnotationCenter(os.path.join(output_dir, 'anno.csv'),
 
 
 # set size for components
-small_canvas_width = 450
-small_canvas_height = 450
+area_canvas_width = 450
+area_canvas_height = 450
 checkboxes_height = 200
 bottom_height = 50
 
@@ -268,18 +269,14 @@ canvas.bind("<Configure>", refresh)
 middle = tk.Frame(root)
 middle.pack(side='left')
 
-tk.Label(middle, text='对象').grid(row=0, column=0)
-tk.Label(middle, text='对象邻域').grid(row=0, column=1)
+tk.Label(middle, text='对象邻域').grid(row=0, column=0)
 
 
 
-# small canvas for bbox preview
-small_canvas = Canvas(middle, bg="lightgray", width=small_canvas_width, height=small_canvas_height)
-small_canvas.grid(row=1, column=0)
-small_canvas.bind("<Configure>", refresh)
+# area canvas for bbox preview
 
-area_canvas = Canvas(middle, bg="lightgray", width=small_canvas_width, height=small_canvas_height)
-area_canvas.grid(row=1, column=1)
+area_canvas = Canvas(middle, bg="lightgray", width=area_canvas_width, height=area_canvas_height)
+area_canvas.grid(row=1, column=0)
 area_canvas.bind("<Configure>", refresh)
 
 
@@ -366,7 +363,10 @@ for l in label:
     tk.Label(checkbox_frame, text=next(label_text), pady=-3, font=("Times",10,"bold")).pack(anchor="w")
     for j in l:
         check = tk.BooleanVar()
-        checkbox = tk.Radiobutton(checkbox_frame, text=j, variable=joint, value=i, command=renew_checkbox, pady=-2)
+        if j in label[0]:
+            checkbox = tk.Radiobutton(checkbox_frame, text=j, variable=joint, value=i, command=renew_checkbox, pady=-2)
+        else:
+            checkbox = tk.Checkbutton(checkbox_frame, text=j, variable=check, command=check2joint, pady=-2)
         checkbox.pack(anchor="w")
         checks.append(check)
         checkboxes.append(checkbox)
