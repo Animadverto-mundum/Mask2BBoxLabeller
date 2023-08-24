@@ -32,22 +32,22 @@ def scan_from_2dir(img_path: str, mask_path: str, ifresize, win) -> List[Tuple[s
         [('1.jpg', '1-mask.jpg'])]
     """
     try:
-        img_list = [i for i in os.listdir(img_path) if any([i.endswith(j) for j in ('.jpg', 'png', '.bmp', 'jpeg')]) and not i.split('.')[0].endswith('-mask')]
+        img_list = [i for i in os.listdir(img_path) if any([i.endswith(j) for j in ('.jpg', 'png', '.bmp', 'jpeg')]) and not (i.split('.')[0].endswith('-mask') or i.split('.')[0].endswith('_mask'))]
     except:
         messagebox.showerror("", "不存在路径 %s。" %  img_path)
         sys.exit()
 
     try:
-        mask_list = [i for i in os.listdir(mask_path) if any([i.endswith(j) for j in ('.jpg', 'png', '.bmp', 'jpeg')]) and i.split('.')[0].endswith('-mask')]
+        mask_list = [i for i in os.listdir(mask_path) if any([i.endswith(j) for j in ('.jpg', 'png', '.bmp', 'jpeg')]) and (i.split('.')[0].endswith('-mask') or i.split('.')[0].endswith('_mask'))]
     except:
         messagebox.showerror("", "不存在路径 %s。" %  mask_path)
         sys.exit()
     
     img_root2file = {i.split('.')[0]: i for i in img_list}
-    mask_root2file = {i.split('.')[0].rstrip('-mask'): i for i in mask_list}
+    mask_root2file = {i.split('.')[0].rstrip('-mask').rstrip('_mask'): i for i in mask_list}
 
     img_root = set([i.split('.')[0] for i in img_list])
-    mask_root = set([i.split('.')[0].rstrip('-mask') for i in mask_list])
+    mask_root = set([i.split('.')[0].rstrip('-mask').rstrip('_mask') for i in mask_list])
     union_root = img_root & mask_root
     if not len(union_root) == len(mask_root) == len(img_root):
         messagebox.showerror("", "存在缺失/命名不匹配的图片/遮罩，已忽略。")

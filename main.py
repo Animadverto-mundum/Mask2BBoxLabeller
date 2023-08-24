@@ -73,19 +73,21 @@ def refresh(event=None):
     
     # remove preview on small canvas to load new preview
     small_canvas.delete("all")
-    crop_image = original_img.crop(bbox_list[bbox_ptr]).resize((small_canvas.winfo_width(), small_canvas.winfo_height()))
-    load_crop_image = ImageTk.PhotoImage(crop_image)
-    small_canvas.create_image(0, 0, anchor='nw', image = load_crop_image)
+    if 0 <= bbox_ptr < len(bbox_list):
+        crop_image = original_img.crop(bbox_list[bbox_ptr]).resize((small_canvas.winfo_width(), small_canvas.winfo_height()))
+        load_crop_image = ImageTk.PhotoImage(crop_image)
+        small_canvas.create_image(0, 0, anchor='nw', image = load_crop_image)
 
     area_canvas.delete("all")
-    area_l, area_u, area_r, area_d = bbox_list[bbox_ptr]
-    area_factor = 2
-    area_l, area_r = (area_l + area_r) // 2 - (area_r - area_l) * area_factor // 2, (area_l + area_r) // 2 + (area_r - area_l) * area_factor // 2
-    area_u, area_d = (area_d + area_u) // 2 - (area_d - area_u) * area_factor // 2, (area_d + area_u) // 2 + (area_d - area_u) * area_factor // 2
-    area_l, area_r, area_u, area_d = max(0, int(area_l)), min(original_img.size[0], int(area_r)), max(0, int(area_u)), min(original_img.size[1], int(area_d))
-    area_image = original_img.crop((area_l, area_u, area_r, area_d)).resize((area_canvas.winfo_width(), small_canvas.winfo_height()))
-    load_area_image = ImageTk.PhotoImage(area_image)
-    area_canvas.create_image(0, 0, anchor='nw', image = load_area_image)
+    if 0 <= bbox_ptr < len(bbox_list):
+        area_l, area_u, area_r, area_d = bbox_list[bbox_ptr]
+        area_factor = 2
+        area_l, area_r = (area_l + area_r) // 2 - (area_r - area_l) * area_factor // 2, (area_l + area_r) // 2 + (area_r - area_l) * area_factor // 2
+        area_u, area_d = (area_d + area_u) // 2 - (area_d - area_u) * area_factor // 2, (area_d + area_u) // 2 + (area_d - area_u) * area_factor // 2
+        area_l, area_r, area_u, area_d = max(0, int(area_l)), min(original_img.size[0], int(area_r)), max(0, int(area_u)), min(original_img.size[1], int(area_d))
+        area_image = original_img.crop((area_l, area_u, area_r, area_d)).resize((area_canvas.winfo_width(), small_canvas.winfo_height()))
+        load_area_image = ImageTk.PhotoImage(area_image)
+        area_canvas.create_image(0, 0, anchor='nw', image = load_area_image)
 
 
 def prev_bbox():
@@ -129,16 +131,18 @@ def next_image():
 def load_checker():
     # load checkbox status from memory to GUI
     for i in range(len(checkboxes)):
-        if label_list[bbox_ptr][i]:
-            checks[i].set(True)
-        else:
-            checks[i].set(False)
+        if 0 <= bbox_ptr < len(label_list):
+            if label_list[bbox_ptr][i]:
+                checks[i].set(True)
+            else:
+                checks[i].set(False)
     check2joint()
 
 def save_checker():
     # save checkbox status from GUI to memory
     for i in range(len(checkboxes)):
-        label_list[bbox_ptr][i] = int(checks[i].get())
+        if 0 <= bbox_ptr < len(label_list):
+            label_list[bbox_ptr][i] = int(checks[i].get())
 
 def prepare_image():
     # load an image
