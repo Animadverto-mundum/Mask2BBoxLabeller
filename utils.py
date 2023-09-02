@@ -32,22 +32,32 @@ def scan_from_2dir(img_path: str, mask_path: str, ifresize, win) -> List[Tuple[s
         [('1.jpg', '1-mask.jpg'])]
     """
     try:
-        img_list = [i for i in os.listdir(img_path) if any([i.endswith(j) for j in ('.jpg', 'png', '.bmp', 'jpeg')]) and not (i.split('.')[0].endswith('-mask') or i.split('.')[0].endswith('_mask'))]
+        img_list = []
+        for this_dir, dirs, files in os.walk(img_path):
+            for f in files:
+                this_path = os.path.join(this_dir, f)
+                if any([this_path.endswith(i) for i in ('.jpg', 'png', '.bmp', 'jpeg')]) and not (this_path.split('.')[-2].endswith('-mask') or this_path.split('.')[-2].endswith('_mask')):
+                    img_list.append(this_path)
     except:
         messagebox.showerror("", "不存在路径 %s。" %  img_path)
         sys.exit()
 
     try:
-        mask_list = [i for i in os.listdir(mask_path) if any([i.endswith(j) for j in ('.jpg', 'png', '.bmp', 'jpeg')]) and (i.split('.')[0].endswith('-mask') or i.split('.')[0].endswith('_mask'))]
+        mask_list = []
+        for this_dir, dirs, files in os.walk(mask_path):
+            for f in files:
+                this_path = os.path.join(this_dir, f)
+                if any([this_path.endswith(i) for i in ('.jpg', 'png', '.bmp', 'jpeg')]) and (this_path.split('.')[-2].endswith('-mask') or this_path.split('.')[-2].endswith('_mask')):
+                    mask_list.append(this_path)
     except:
         messagebox.showerror("", "不存在路径 %s。" %  mask_path)
         sys.exit()
     
-    img_root2file = {i.split('.')[0]: i for i in img_list}
-    mask_root2file = {i.split('.')[0].rstrip('-mask').rstrip('_mask'): i for i in mask_list}
+    img_root2file = {'.'.join(i.split('.')[:-1]): i for i in img_list}
+    mask_root2file = {'.'.join(i.split('.')[:-1]).rstrip('-mask').rstrip('_mask'): i for i in mask_list}
 
-    img_root = set([i.split('.')[0] for i in img_list])
-    mask_root = set([i.split('.')[0].rstrip('-mask').rstrip('_mask') for i in mask_list])
+    img_root = set(['.'.join(i.split('.')[:-1]) for i in img_list])
+    mask_root = set(['.'.join(i.split('.')[:-1]).rstrip('-mask').rstrip('_mask') for i in mask_list])
     union_root = img_root & mask_root
     if not len(union_root) == len(mask_root) == len(img_root):
         messagebox.showerror("", "存在缺失/命名不匹配的图片/遮罩，已忽略。")

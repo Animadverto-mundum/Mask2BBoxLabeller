@@ -1,3 +1,8 @@
+import ctypes
+ctypes.windll.shcore.SetProcessDpiAwareness(1)
+# scale factor for GUI
+ScaleFactor = ctypes.windll.shcore.GetScaleFactorForDevice(0)
+
 import tkinter as tk
 from tkinter import Tk, Canvas, Frame, Checkbutton, Button
 from PIL import ImageTk, Image
@@ -52,7 +57,6 @@ def refresh(event=None):
     
     # remove image and rectangles on the main canvas to repaint due to resizing
     canvas.delete("all")
-    # resize image without distortion
     if original_img.size[0] > original_img.size[1]:
         width_factor = canvas.winfo_width() / original_img.size[0]
         height_factor = width_factor
@@ -60,7 +64,10 @@ def refresh(event=None):
         height_factor = canvas.winfo_height() / original_img.size[1]
         width_factor = height_factor
 
+    # width_factor = canvas.winfo_width() / original_img.size[0]
+    # height_factor = canvas.winfo_height() / original_img.size[1]
     if event is not None:
+        # image = original_img.resize((canvas.winfo_width(), canvas.winfo_height()))
         image = original_img.resize((int(width_factor*original_img.size[0]), int(height_factor*original_img.size[1])))
         image = ImageTk.PhotoImage(image)
     canvas.create_image(0, 0, anchor='nw', image=image)
@@ -78,7 +85,7 @@ def refresh(event=None):
             outline='red'
         canvas.create_rectangle(x1 * width_factor, y1 * height_factor, x2 * width_factor, y2 * height_factor, outline=outline, width=1)
     
-    # remove preview on area canvas to load new preview
+    # remove preview on small canvas to load new preview
     
     area_canvas.delete("all")
     if 0 <= bbox_ptr < len(bbox_list):
@@ -87,9 +94,18 @@ def refresh(event=None):
         area_l, area_r = (area_l + area_r) // 2 - (area_r - area_l) * area_factor // 2, (area_l + area_r) // 2 + (area_r - area_l) * area_factor // 2
         area_u, area_d = (area_d + area_u) // 2 - (area_d - area_u) * area_factor // 2, (area_d + area_u) // 2 + (area_d - area_u) * area_factor // 2
         area_l, area_r, area_u, area_d = max(0, int(area_l)), min(original_img.size[0], int(area_r)), max(0, int(area_u)), min(original_img.size[1], int(area_d))
-        area_image = original_img.crop((area_l, area_u, area_r, area_d)).resize((area_canvas.winfo_width(), area_canvas.winfo_height()))
+        area_image = original_img.crop((area_l, area_u, area_r, area_d))
+        
+        if area_image.size[0] > area_image.size[1]:
+            width_factor = area_canvas.winfo_width() / area_image.size[0]
+            height_factor = width_factor
+        else:
+            height_factor = area_canvas.winfo_height() / area_image.size[1]
+            width_factor = height_factor
+
+        area_image = area_image.resize((int(width_factor*area_image.size[0]), int(height_factor*area_image.size[1])))
         load_area_image = ImageTk.PhotoImage(area_image)
-        area_canvas.create_image(0, 0, anchor='nw', image = load_area_image)
+        area_canvas.create_image(area_canvas.winfo_width() // 2, area_canvas.winfo_height() // 2, anchor='center', image = load_area_image)
 
 
 def prev_bbox():
@@ -157,8 +173,8 @@ def prepare_image():
 
 query_win = Tk()
 query_win.title('选择工作目录')
-initial_width = 400
-initial_height = 350
+initial_width = 500
+initial_height = 550
 query_win.geometry(f"{initial_width}x{initial_height}+{(query_win.winfo_screenwidth()-initial_width)//2}+{(query_win.winfo_screenheight()-initial_height)//2}")
 
 tk.Label(query_win, text='图像目录(命名如:1.jpg)').pack()
@@ -202,6 +218,8 @@ query_win.mainloop()
 # root windows
 root = Tk()
 root.title("Mask2BBox by @git-thinker")
+root.tk.call('tk', 'scaling', ScaleFactor/75)
+
 
 # initial windows size
 initial_width = 1920
@@ -256,8 +274,8 @@ annotation_center = utils.AnnotationCenter(os.path.join(output_dir, 'anno.csv'),
 
 
 # set size for components
-area_canvas_width = 450
-area_canvas_height = 450
+area_canvas_width = 600
+area_canvas_height = 600
 checkboxes_height = 200
 bottom_height = 50
 
