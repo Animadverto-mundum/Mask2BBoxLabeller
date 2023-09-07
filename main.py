@@ -4,8 +4,8 @@ ctypes.windll.shcore.SetProcessDpiAwareness(1)
 ScaleFactor = ctypes.windll.shcore.GetScaleFactorForDevice(0)
 
 import tkinter as tk
-from tkinter import Tk, Canvas, Frame, Checkbutton, Button
-from PIL import ImageTk, Image
+from tkinter import Tk, Canvas, Frame, Checkbutton, Button, Label
+from PIL import ImageTk, Image, ImageEnhance
 from tkinter.filedialog import askdirectory
 from tkinter import ttk
 import utils
@@ -24,16 +24,46 @@ bbox_list = None
 bbox_ptr = 0
 label_list = None
 original_img = None
+enhanced_image = None
 crop_image = None
 load_crop_image = None
 area_image = None
 load_area_image = None
 
+def perform_image_enhance(
+        image: Image.Image,
+        bright: float,
+        contrast: float
+    ):
+    if bright is not None:
+        brighter = ImageEnhance.Brightness(image)
+        image = brighter.enhance(bright)
+    if contrast is not None:
+        contraster = ImageEnhance.Contrast(image)
+        image = contraster.enhance(contrast)
+    return image
+
+def enhance_image(*args):
+    global enhanced_image
+    try:
+        bright = float(var_bright.get())
+    except:
+        var_bright.set("Float Here")
+        bright = None
+    
+    try:
+        contrast = float(var_contrast.get())
+    except:
+        var_contrast.set("Float Here")
+        contrast = None
+    enhanced_image = perform_image_enhance(original_img, bright, contrast)
+    refresh(0)
 
 def refresh(event=None):
     # repaint windows
 
     global image
+    global enhanced_image
     global crop_image
     global load_crop_image
     global area_image
@@ -42,6 +72,8 @@ def refresh(event=None):
     # pregress details on the title
     root.title("Mask2BBox | Image: %d/%d | Item: %d / %d | %s" % (image_ptr+1, len(image_list), bbox_ptr+1, len(bbox_list), image_list[image_ptr][0]))
 
+    if enhanced_image is None:
+        enhance_image()
     # resize the main canvas
     if event is not None and event != 0:
         canvas_width = event.width
@@ -57,18 +89,18 @@ def refresh(event=None):
     
     # remove image and rectangles on the main canvas to repaint due to resizing
     canvas.delete("all")
-    if original_img.size[0] > original_img.size[1]:
-        width_factor = canvas.winfo_width() / original_img.size[0]
+    if enhanced_image.size[0] > enhanced_image.size[1]:
+        width_factor = canvas.winfo_width() / enhanced_image.size[0]
         height_factor = width_factor
     else:
-        height_factor = canvas.winfo_height() / original_img.size[1]
+        height_factor = canvas.winfo_height() / enhanced_image.size[1]
         width_factor = height_factor
 
-    # width_factor = canvas.winfo_width() / original_img.size[0]
-    # height_factor = canvas.winfo_height() / original_img.size[1]
+    # width_factor = canvas.winfo_width() / enhanced_image.size[0]
+    # height_factor = canvas.winfo_height() / enhanced_image.size[1]
     if event is not None:
-        # image = original_img.resize((canvas.winfo_width(), canvas.winfo_height()))
-        image = original_img.resize((int(width_factor*original_img.size[0]), int(height_factor*original_img.size[1])))
+        # image = enhanced_image.resize((canvas.winfo_width(), canvas.winfo_height()))
+        image = enhanced_image.resize((int(width_factor*enhanced_image.size[0]), int(height_factor*enhanced_image.size[1])))
         image = ImageTk.PhotoImage(image)
     canvas.create_image(0, 0, anchor='nw', image=image)
 
@@ -93,8 +125,8 @@ def refresh(event=None):
         area_factor = 2
         area_l, area_r = (area_l + area_r) // 2 - (area_r - area_l) * area_factor // 2, (area_l + area_r) // 2 + (area_r - area_l) * area_factor // 2
         area_u, area_d = (area_d + area_u) // 2 - (area_d - area_u) * area_factor // 2, (area_d + area_u) // 2 + (area_d - area_u) * area_factor // 2
-        area_l, area_r, area_u, area_d = max(0, int(area_l)), min(original_img.size[0], int(area_r)), max(0, int(area_u)), min(original_img.size[1], int(area_d))
-        area_image = original_img.crop((area_l, area_u, area_r, area_d))
+        area_l, area_r, area_u, area_d = max(0, int(area_l)), min(enhanced_image.size[0], int(area_r)), max(0, int(area_u)), min(enhanced_image.size[1], int(area_d))
+        area_image = enhanced_image.crop((area_l, area_u, area_r, area_d))
         
         if area_image.size[0] > area_image.size[1]:
             width_factor = area_canvas.winfo_width() / area_image.size[0]
@@ -240,6 +272,7 @@ label = [
         '线性',
         '团块状',
         '类线性',
+        '渗出',
     ],
     [
         '弥漫',
@@ -249,6 +282,7 @@ label = [
         '阴性',
     ],
     [
+        '袢腔',
         '毛细血管袢',
         '系膜区',
         '血管壁',
@@ -327,6 +361,28 @@ button3.grid(row=2, column=0, pady=10)
 
 button4 = Button(button_frame, text="Img(S) ->", width=int(buttons_width/2), command=next_image)
 button4.grid(row=2, column=1, padx=10, pady=10)
+
+label_bright = Label(button_frame, text="Bright")
+label_bright.grid(row=3, column=0)
+
+label_contrast = Label(button_frame, text="Contrast")
+label_contrast.grid(row=3, column=1)
+
+label_prompt = Label(button_frame, text="Empty or 1 for no change")
+label_prompt.grid(row=3, column=2)
+
+var_bright = tk.StringVar()
+bright_entry = tk.Entry(button_frame, textvariable=var_bright, width=int(buttons_width/2))
+bright_entry.grid(row=4, column=0)
+bright_entry.bind("<Return>", enhance_image)
+
+var_contrast = tk.StringVar()
+contrast_entry = tk.Entry(button_frame, textvariable=var_contrast, width=int(buttons_width/2))
+contrast_entry.grid(row=4, column=1)
+contrast_entry.bind("<Return>", enhance_image)
+
+refresh_button = Button(button_frame, text="Refresh", width=int(buttons_width/2), command=enhance_image)
+refresh_button.grid(row=4, column=2)
 
 def shortcut(event):
     char = event.char.lower()
