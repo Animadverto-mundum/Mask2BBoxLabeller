@@ -44,13 +44,14 @@ def perform_image_enhance(
     return image
 
 def enhance_image(*args):
+    global original_img
     global enhanced_image
     try:
         bright = float(var_bright.get())
     except:
         var_bright.set("Float Here")
         bright = None
-    
+
     try:
         contrast = float(var_contrast.get())
     except:
@@ -198,6 +199,8 @@ def prepare_image():
     # load an image
     global original_img
     global bbox_list, label_list
+    global enhanced_image
+    enhanced_image = None
     original_img = Image.open(image_list[image_ptr][0])
     bbox_list, label_list = annotation_center.query(image_list[image_ptr])
     load_checker()
