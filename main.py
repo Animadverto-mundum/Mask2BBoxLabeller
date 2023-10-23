@@ -11,6 +11,7 @@ from tkinter import ttk
 import utils
 import os
 import sys
+from tkinter import messagebox
 
 from PIL import ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -24,7 +25,6 @@ bbox_list = None
 bbox_ptr = 0
 label_list = None
 original_img = None
-enhanced_image = None
 crop_image = None
 load_crop_image = None
 area_image = None
@@ -35,36 +35,55 @@ def perform_image_enhance(
         bright: float,
         contrast: float
     ):
-    if bright is not None:
+    del image
+    image = Image.open(image_list[image_ptr][0])
+    if bright is not None and bright != 1.0:
         brighter = ImageEnhance.Brightness(image)
         image = brighter.enhance(bright)
-    if contrast is not None:
+    if contrast is not None and contrast != 1.0:
         contraster = ImageEnhance.Contrast(image)
         image = contraster.enhance(contrast)
     return image
 
-def enhance_image(*args):
+def enhance_image():
     global original_img
-    global enhanced_image
     try:
         bright = float(var_bright.get())
     except:
-        var_bright.set("Float Here")
+        var_bright.set("1.0")
         bright = None
 
     try:
         contrast = float(var_contrast.get())
     except:
-        var_contrast.set("Float Here")
+        var_contrast.set("1.0")
         contrast = None
-    enhanced_image = perform_image_enhance(original_img, bright, contrast)
+
+    del original_img
+    original_img = Image.open(image_list[image_ptr][0])
+
+    def perform_bright(original_img):
+        if bright is not None and bright != 1.0:
+            brighter = ImageEnhance.Brightness(original_img)
+            original_img = brighter.enhance(bright)
+        return original_img
+
+    def perform_contrast(original_img):
+        if contrast is not None and contrast != 1.0:
+            contraster = ImageEnhance.Contrast(original_img)
+            original_img = contraster.enhance(contrast)
+        return original_img
+    original_img = perform_bright(original_img)
+    original_img = perform_contrast(original_img)
+    # return image
+    # original_img = perform_image_enhance(original_img, bright, contrast)
     refresh(0)
 
 def refresh(event=None):
     # repaint windows
 
     global image
-    global enhanced_image
+    global original_img
     global crop_image
     global load_crop_image
     global area_image
@@ -73,7 +92,7 @@ def refresh(event=None):
     # pregress details on the title
     root.title("Mask2BBox | Image: %d/%d | Item: %d / %d | %s" % (image_ptr+1, len(image_list), bbox_ptr+1, len(bbox_list), image_list[image_ptr][0]))
 
-    if enhanced_image is None:
+    if original_img is None:
         enhance_image()
     # resize the main canvas
     if event is not None and event != 0:
@@ -90,18 +109,18 @@ def refresh(event=None):
     
     # remove image and rectangles on the main canvas to repaint due to resizing
     canvas.delete("all")
-    if enhanced_image.size[0] > enhanced_image.size[1]:
-        width_factor = canvas.winfo_width() / enhanced_image.size[0]
+    if original_img.size[0] > original_img.size[1]:
+        width_factor = canvas.winfo_width() / original_img.size[0]
         height_factor = width_factor
     else:
-        height_factor = canvas.winfo_height() / enhanced_image.size[1]
+        height_factor = canvas.winfo_height() / original_img.size[1]
         width_factor = height_factor
 
     # width_factor = canvas.winfo_width() / enhanced_image.size[0]
     # height_factor = canvas.winfo_height() / enhanced_image.size[1]
     if event is not None:
         # image = enhanced_image.resize((canvas.winfo_width(), canvas.winfo_height()))
-        image = enhanced_image.resize((int(width_factor*enhanced_image.size[0]), int(height_factor*enhanced_image.size[1])))
+        image = original_img.resize((int(width_factor*original_img.size[0]), int(height_factor*original_img.size[1])))
         image = ImageTk.PhotoImage(image)
     canvas.create_image(0, 0, anchor='nw', image=image)
 
@@ -126,8 +145,8 @@ def refresh(event=None):
         area_factor = 2
         area_l, area_r = (area_l + area_r) // 2 - (area_r - area_l) * area_factor // 2, (area_l + area_r) // 2 + (area_r - area_l) * area_factor // 2
         area_u, area_d = (area_d + area_u) // 2 - (area_d - area_u) * area_factor // 2, (area_d + area_u) // 2 + (area_d - area_u) * area_factor // 2
-        area_l, area_r, area_u, area_d = max(0, int(area_l)), min(enhanced_image.size[0], int(area_r)), max(0, int(area_u)), min(enhanced_image.size[1], int(area_d))
-        area_image = enhanced_image.crop((area_l, area_u, area_r, area_d))
+        area_l, area_r, area_u, area_d = max(0, int(area_l)), min(original_img.size[0], int(area_r)), max(0, int(area_u)), min(original_img.size[1], int(area_d))
+        area_image = original_img.crop((area_l, area_u, area_r, area_d))
         
         if area_image.size[0] > area_image.size[1]:
             width_factor = area_canvas.winfo_width() / area_image.size[0]
@@ -168,13 +187,24 @@ def prev_image():
     prepare_image()
     refresh(0)
 
-def next_image():
+def next_image(jump_to:str=None):
     global image_ptr
     global bbox_ptr
+    if jump_to is not None:
+        if not jump_to.isdigit():
+            messagebox.showerror("Jump Error", "跳转失败，输入不是数字。")
+            return None
+        jump_to = int(jump_to) - 1
+        if not 0 <= jump_to < len(image_list):
+            messagebox.showerror("Jump Error", "跳转失败，超出范围。应当是1-%d" % len(image_list))
+            return None
     save_checker()
     bbox_ptr = 0
     annotation_center.add(image_list[image_ptr], bbox_list, label_list)
-    image_ptr += 1
+    if jump_to is not None:
+        image_ptr = jump_to
+    else:
+        image_ptr += 1
     if image_ptr == len(image_list): image_ptr = len(image_list) - 1
     prepare_image()
     refresh(0)
@@ -199,12 +229,17 @@ def prepare_image():
     # load an image
     global original_img
     global bbox_list, label_list
-    global enhanced_image
-    enhanced_image = None
-    original_img = Image.open(image_list[image_ptr][0])
+    original_img = None
+    # original_img = Image.open(image_list[image_ptr][0])
     bbox_list, label_list = annotation_center.query(image_list[image_ptr])
     load_checker()
 
+def findfirsttodo():
+    # iterate all image to find the first one that has not been fully annoted
+    for i, item in enumerate(image_list):
+        annos = [sum(j) for j in annotation_center.query(item)[-1]]
+        if not all(annos):
+            return i
 
 query_win = Tk()
 query_win.title('选择工作目录')
@@ -282,6 +317,7 @@ label = [
         '局灶',
         '球性',
         '节段',
+        '硬化',
         '阴性',
     ],
     [
@@ -365,27 +401,46 @@ button3.grid(row=2, column=0, pady=10)
 button4 = Button(button_frame, text="Img(S) ->", width=int(buttons_width/2), command=next_image)
 button4.grid(row=2, column=1, padx=10, pady=10)
 
-label_bright = Label(button_frame, text="Bright")
+label_bright = Label(button_frame, text="亮度")
 label_bright.grid(row=3, column=0)
 
-label_contrast = Label(button_frame, text="Contrast")
+label_contrast = Label(button_frame, text="对比度")
 label_contrast.grid(row=3, column=1)
 
-label_prompt = Label(button_frame, text="Empty or 1 for no change")
+label_prompt = Label(button_frame, text="留空保持不变")
 label_prompt.grid(row=3, column=2)
 
 var_bright = tk.StringVar()
-bright_entry = tk.Entry(button_frame, textvariable=var_bright, width=int(buttons_width/2))
+var_bright.set("1.0")
+bright_entry = tk.Spinbox(button_frame, from_=0, to=10, increment=0.2, textvariable=var_bright, width=int(buttons_width/2))
 bright_entry.grid(row=4, column=0)
 bright_entry.bind("<Return>", enhance_image)
 
 var_contrast = tk.StringVar()
-contrast_entry = tk.Entry(button_frame, textvariable=var_contrast, width=int(buttons_width/2))
+var_contrast.set("1.0")
+contrast_entry = tk.Spinbox(button_frame, from_=0, to=10, increment=0.2, textvariable=var_contrast, width=int(buttons_width/2))
 contrast_entry.grid(row=4, column=1)
 contrast_entry.bind("<Return>", enhance_image)
 
 refresh_button = Button(button_frame, text="Refresh", width=int(buttons_width/2), command=enhance_image)
 refresh_button.grid(row=4, column=2)
+
+jump_prompt = Label(button_frame, text="跳转到指定图像")
+jump_prompt.grid(row=5, column=0)
+
+jump_prompt = Label(button_frame, text="跳转到首个待标注图像")
+jump_prompt.grid(row=5, column=2)
+
+var_jump = tk.StringVar()
+var_jump.set("1")
+jump_entry = tk.Entry(button_frame, textvariable=var_jump, width=int(buttons_width/2))
+jump_entry.grid(row=6, column=0)
+
+jump_button = Button(button_frame, text="Jump to", width=int(buttons_width/2), command=lambda: next_image(var_jump.get()))
+jump_button.grid(row=6, column=1)
+
+jump_first_button = Button(button_frame, text="Jump", width=int(buttons_width/2), command=lambda: next_image(str(findfirsttodo()+1)))
+jump_first_button.grid(row=6, column=2)
 
 def shortcut(event):
     char = event.char.lower()
@@ -452,6 +507,9 @@ for l in label:
     sep.pack(fill='x')
     joints.append(joint)
 
+
+            
+image_ptr = findfirsttodo()
 
 # pre_loading image
 prepare_image()

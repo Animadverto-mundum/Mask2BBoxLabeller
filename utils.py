@@ -53,11 +53,11 @@ def scan_from_2dir(img_path: str, mask_path: str, ifresize, win) -> List[Tuple[s
         messagebox.showerror("", "不存在路径 %s。" %  mask_path)
         sys.exit()
     
-    img_root2file = {'.'.join(i.split('.')[:-1]): i for i in img_list}
-    mask_root2file = {'.'.join(i.split('.')[:-1]).rstrip('-mask').rstrip('_mask'): i for i in mask_list}
+    img_root2file = {'.'.join(os.path.split(i)[-1].split('.')[:-1]): i for i in img_list}
+    mask_root2file = {'.'.join(os.path.split(i)[-1].split('.')[:-1]).rstrip('-mask').rstrip('_mask'): i for i in mask_list}
 
-    img_root = set(['.'.join(i.split('.')[:-1]) for i in img_list])
-    mask_root = set(['.'.join(i.split('.')[:-1]).rstrip('-mask').rstrip('_mask') for i in mask_list])
+    img_root = set(['.'.join(os.path.split(i)[-1].split('.')[:-1]) for i in img_list])
+    mask_root = set(['.'.join(os.path.split(i)[-1].split('.')[:-1]).rstrip('-mask').rstrip('_mask') for i in mask_list])
     union_root = img_root & mask_root
     if not len(union_root) == len(mask_root) == len(img_root):
         messagebox.showerror("", "存在缺失/命名不匹配的图片/遮罩，已忽略。")
@@ -132,7 +132,7 @@ def mask2bbox(path: str) -> List[Tuple[int]]:
     # gray scale to binary
     ret, mask = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)
     if len(mask.shape) > 2:
-        mask = mask.mean(-1).astype(np.int8)
+        mask = mask[:,:,0].astype(np.int8)
 
     def mask_find_bboxs(mask):
         retval, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, connectivity=8) # connectivity参数的默认值为8
